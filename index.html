@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POINT CHECK</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f7;color:#111}
+  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 50px}
+  header{text-align:center;padding:28px 0 22px}
+  .logo{font-size:13px;letter-spacing:4px;font-weight:800;color:#777}
+  h1{margin:8px 0 6px;font-size:34px}
+  .sub{margin:0;color:#777;font-size:14px}
+  .card{background:white;border:1px solid #e7e7e7;border-radius:22px;padding:22px;box-shadow:0 8px 30px #00000008;margin-top:16px}
+  label{display:block;font-size:13px;font-weight:700;margin:0 0 8px}
+  input,button,select{width:100%;height:48px;border-radius:13px;border:1px solid #ddd;padding:0 14px;font-size:15px}
+  input:focus{outline:2px solid #111;outline-offset:1px}
+  button{border:0;background:#111;color:white;font-weight:700;cursor:pointer;margin-top:10px}
+  button.secondary{background:#f0f0f2;color:#111}
+  .result{display:none;text-align:center;padding:24px 10px 8px}
+  .name{font-size:15px;color:#777}
+  .points{font-size:52px;font-weight:850;letter-spacing:-2px;margin:5px 0}
+  .unit{font-size:20px;letter-spacing:0}
+  .notice{font-size:12px;color:#999;margin-top:10px}
+  .admin-toggle{text-align:center;margin-top:22px}
+  .link{background:none;color:#777;padding:0;height:auto;font-size:12px;text-decoration:underline}
+  #admin{display:none}
+  .row{display:grid;grid-template-columns:1fr 120px;gap:8px}
+  .member{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid #eee}
+  .member:last-child{border-bottom:0}
+  .member small{display:block;color:#999;margin-top:3px}
+  .actions{display:flex;gap:6px}
+  .actions button{width:auto;margin:0;height:36px;padding:0 10px;font-size:12px}
+  .danger{background:#fff0f0!important;color:#c33!important}
+  .empty{color:#999;text-align:center;padding:18px 0;font-size:13px}
+  .status{font-size:12px;color:#777;margin-top:8px;min-height:16px}
+  .modal{display:none;position:fixed;inset:0;background:#0007;align-items:center;justify-content:center;padding:18px}
+  .modal-box{background:#fff;border-radius:20px;padding:22px;width:min(420px,100%)}
+  .modal-box h3{margin:0 0 15px}
+  .mini{font-size:12px;color:#888}
+  footer{text-align:center;color:#aaa;font-size:11px;margin-top:25px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">POINT CHECK</div>
+    <h1>포인트 조회</h1>
+    <p class="sub">닉네임을 입력하면 현재 포인트를 확인할 수 있어요.</p>
+  </header>
+
+  <section class="card">
+    <label for="searchName">닉네임</label>
+    <input id="searchName" placeholder="예: 가윤" autocomplete="off">
+    <button onclick="lookup()">포인트 조회하기</button>
+
+    <div id="result" class="result">
+      <div class="name" id="resultName"></div>
+      <div class="points"><span id="resultPoints">0</span> <span class="unit">P</span></div>
+      <div class="notice">현재 등록된 포인트입니다.</div>
+    </div>
+    <div id="message" class="status"></div>
+  </section>
+
+  <div class="admin-toggle">
+    <button class="link" onclick="openAdminLogin()">관리자 모드</button>
+  </div>
+
+  <section id="admin" class="card">
+    <h2 style="margin:0 0 5px">관리자</h2>
+    <p class="mini">이 브라우저에 저장된 회원/포인트를 관리합니다.</p>
+
+    <div style="margin-top:18px">
+      <label>회원 추가</label>
+      <div class="row">
+        <input id="newName" placeholder="닉네임">
+        <input id="newPoints" type="number" placeholder="포인트">
+      </div>
+      <button onclick="addMember()">회원 추가</button>
+    </div>
+
+    <div style="margin-top:24px">
+      <label>회원 목록</label>
+      <div id="memberList"></div>
+    </div>
+
+    <div style="margin-top:18px">
+      <button class="secondary" onclick="exportData()">데이터 백업</button>
+      <button class="secondary" onclick="importData()">데이터 복원</button>
+      <button class="danger" onclick="resetData()">전체 데이터 초기화</button>
+    </div>
+  </section>
+
+  <footer>POINT CHECK · Local version</footer>
+</div>
+
+<div id="loginModal" class="modal">
+  <div class="modal-box">
+    <h3>관리자 인증</h3>
+    <p class="mini">처음 비밀번호는 <b>1234</b>입니다. 실제 운영 전 반드시 바꾸세요.</p>
+    <input id="adminPw" type="password" placeholder="관리자 비밀번호">
+    <button onclick="login()">로그인</button>
+    <button class="secondary" onclick="closeModal()">취소</button>
+  </div>
+</div>
+
+<script>
+const KEY = "point_check_members_v1";
+const ADMIN_KEY = "point_check_admin_pw_v1";
+
+function getMembers(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveMembers(data){ localStorage.setItem(KEY, JSON.stringify(data)); }
+
+if(!localStorage.getItem(ADMIN_KEY)) localStorage.setItem(ADMIN_KEY, "1234");
+
+function lookup(){
+  const name = document.getElementById("searchName").value.trim();
+  const result = document.getElementById("result");
+  const message = document.getElementById("message");
+  result.style.display="none";
+  message.textContent="";
+
+  if(!name){ message.textContent="닉네임을 입력해주세요."; return; }
+
+  const member = getMembers().find(x => x.name.toLowerCase() === name.toLowerCase());
+  if(!member){ message.textContent="등록된 닉네임을 찾지 못했어요."; return; }
+
+  document.getElementById("resultName").textContent = member.name + "님의 포인트";
+  document.getElementById("resultPoints").textContent = Number(member.points).toLocaleString("ko-KR");
+  result.style.display="block";
+}
+
+document.getElementById("searchName").addEventListener("keydown", e=>{
+  if(e.key==="Enter") lookup();
+});
+
+function openAdminLogin(){
+  document.getElementById("adminPw").value="";
+  document.getElementById("loginModal").style.display="flex";
+  setTimeout(()=>document.getElementById("adminPw").focus(),50);
+}
+function closeModal(){ document.getElementById("loginModal").style.display="none"; }
+
+function login(){
+  const pw=document.getElementById("adminPw").value;
+  if(pw===localStorage.getItem(ADMIN_KEY)){
+    closeModal();
+    document.getElementById("admin").style.display="block";
+    renderMembers();
+  }else alert("비밀번호가 맞지 않아요.");
+}
+
+function addMember(){
+  const name=document.getElementById("newName").value.trim();
+  const points=Number(document.getElementById("newPoints").value||0);
+  if(!name){ alert("닉네임을 입력해주세요."); return; }
+  const data=getMembers();
+  if(data.some(x=>x.name.toLowerCase()===name.toLowerCase())){
+    alert("이미 등록된 닉네임이에요."); return;
+  }
+  data.push({name,points});
+  saveMembers(data);
+  document.getElementById("newName").value="";
+  document.getElementById("newPoints").value="";
+  renderMembers();
+}
+
+function changePoints(index){
+  const data=getMembers();
+  const value=prompt(`${data[index].name}님의 새 포인트를 입력하세요.`, data[index].points);
+  if(value===null) return;
+  const points=Number(value);
+  if(!Number.isFinite(points)){ alert("숫자를 입력해주세요."); return; }
+  data[index].points=points;
+  saveMembers(data);
+  renderMembers();
+}
+
+function removeMember(index){
+  const data=getMembers();
+  if(confirm(`${data[index].name}님을 삭제할까요?`)){
+    data.splice(index,1); saveMembers(data); renderMembers();
+  }
+}
+
+function renderMembers(){
+  const box=document.getElementById("memberList");
+  const data=getMembers();
+  if(!data.length){ box.innerHTML='<div class="empty">등록된 회원이 없습니다.</div>'; return; }
+  box.innerHTML=data.map((m,i)=>`
+    <div class="member">
+      <div><b>${escapeHtml(m.name)}</b><small>${Number(m.points).toLocaleString("ko-KR")} P</small></div>
+      <div class="actions">
+        <button onclick="changePoints(${i})">수정</button>
+        <button class="danger" onclick="removeMember(${i})">삭제</button>
+      </div>
+    </div>`).join("");
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+function exportData(){
+  const blob=new Blob([JSON.stringify(getMembers(),null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="point-data.json"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importData(){
+  const input=document.createElement("input"); input.type="file"; input.accept=".json";
+  input.onchange=()=>{
+    const file=input.files[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(!Array.isArray(data)) throw new Error();
+        saveMembers(data.map(x=>({name:String(x.name),points:Number(x.points)||0})));
+        renderMembers(); alert("데이터를 복원했어요.");
+      }catch(e){alert("올바른 포인트 데이터 파일이 아니에요.");}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function resetData(){
+  if(confirm("모든 회원과 포인트 데이터를 삭제할까요?")){
+    localStorage.removeItem(KEY); renderMembers();
+  }
+}
+</script>
+</body>
+</html>
