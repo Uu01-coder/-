@@ -78,8 +78,8 @@
         }
 
       } catch (error) {
-        result.textContent = "조회 중 오류가 발생했습니다.";
-      }
+  result.textContent = "오류: " + error.message;
+}
     }
   </script>
 
