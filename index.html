@@ -78,7 +78,8 @@
         }
 
       } catch (error) {
-  result.textContent = "오류: " + error.message;
+  console.error(error);
+  result.textContent = "오류: " + String(error);
 }
     }
   </script>
